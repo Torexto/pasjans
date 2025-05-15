@@ -1,2 +1,3 @@
-﻿
-var game = new Pasjans.Pasjans();
+﻿var game = new Pasjans.Pasjans();
+
+game.PrintBoard();

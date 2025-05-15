@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace Pasjans;
 
 public enum Mode
@@ -8,39 +10,75 @@ public enum Mode
 
 public enum CardType
 {
-  Kier,
-  Karo,
-  Pik,
-  Trefl
+  [Description("♥")] Kier,
+  [Description("♦")] Karo,
+  [Description("♠")] Pik,
+  [Description("♣")] Trefl
 }
 
 public enum CardValue
 {
-  Ace = 1,
-  Two,
-  Three,
-  Four,
-  Five,
-  Six,
-  Seven,
-  Eight,
-  Nine,
-  Ten,
-  Jack,
-  Queen,
-  King
+  [Description("A")] Ace = 1,
+  [Description("2")] Two,
+  [Description("3")] Three,
+  [Description("4")] Four,
+  [Description("5")] Five,
+  [Description("6")] Six,
+  [Description("7")] Seven,
+  [Description("8")] Eight,
+  [Description("9")] Nine,
+  [Description("10")] Ten,
+  [Description("J")] Jack,
+  [Description("Q")] Queen,
+  [Description("K")] King
 }
 
-public record Card(CardType Type, CardValue Value);
+public record Card(CardType Type, CardValue Value)
+{
+  public bool IsFaceUp { get; set; }
+
+  private static string GetDescription(Enum value)
+  {
+    var field = value.GetType().GetField(value.ToString());
+    var attributes = (DescriptionAttribute[])field!.GetCustomAttributes(typeof(DescriptionAttribute), false);
+    return attributes.Length > 0 ? attributes[0].Description : value.ToString();
+  }
+
+  public override string ToString()
+  {
+    var description = $"{GetDescription(Value)}{GetDescription(Type)}";
+
+    return IsFaceUp ? (description.Length < 3 ? description += " " : description) : "###";
+  }
+};
 
 public class Pasjans
 {
-  private List<Card> _cards = new List<Card>(52);
-  private Stack<Card>[] _columns = new Stack<Card>[7];
+  private readonly List<Card> _cards = new List<Card>(52);
+
+  private readonly List<List<Card>> _result =
+  [
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>(),
+  ];
+
+  private readonly List<List<Card>> _columns =
+  [
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>(),
+    new List<Card>()
+  ];
 
   public Pasjans()
   {
     GenerateCards();
+    DealCards();
   }
 
   private void GenerateCards()
@@ -76,15 +114,41 @@ public class Pasjans
 
   private void DealCards()
   {
-    const int len = 1;
+    var len = 1;
 
     foreach (var column in _columns)
     {
       for (var i = 0; i < len; i++)
       {
-        column.Push(_cards.Last());
+        column.Add(_cards.Last());
         _cards.RemoveAt(_cards.Count - 1);
       }
+
+      len++;
+    }
+  }
+
+  public void PrintBoard()
+  {
+    for (var i = 0; i < 7; i++)
+    {
+      foreach (var column in _columns)
+      {
+        Console.Write(" ");
+
+        if (column.Count - 1 == i)
+          column[i].IsFaceUp = true;
+
+        if (column.Count <= i)
+        {
+          Console.Write("   ");
+          continue;
+        }
+
+        Console.Write(column[i].ToString());
+      }
+
+      Console.WriteLine();
     }
   }
 }
