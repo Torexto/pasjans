@@ -8,6 +8,12 @@ public enum Mode
   Hard
 }
 
+public enum Color
+{
+  Red,
+  Black
+}
+
 public enum CardType
 {
   [Description("♥")] Kier,
@@ -50,13 +56,32 @@ public record Card(CardType Type, CardValue Value)
 
     return IsFaceUp ? (description.Length < 3 ? description += " " : description) : "###";
   }
+
+  public ConsoleColor ToColor()
+  {
+    return Type is CardType.Kier or CardType.Karo ? ConsoleColor.Black : ConsoleColor.Red;
+  }
+
+  public bool IsKing()
+  {
+    return Value == CardValue.King;
+  }
+
+  public void Print()
+  {
+    Console.ForegroundColor = IsFaceUp
+      ? ToColor()
+      : ConsoleColor.White;
+    Console.Write(ToString());
+    Console.ForegroundColor = ConsoleColor.White;
+  }
 };
 
 public class Pasjans
 {
   private readonly List<Card> _cards = new List<Card>(52);
 
-  private readonly List<List<Card>> _result =
+  private readonly List<List<Card>> _endingStacks =
   [
     new List<Card>(),
     new List<Card>(),
@@ -75,10 +100,17 @@ public class Pasjans
     new List<Card>()
   ];
 
-  public Pasjans()
+  private readonly Mode _mode;
+  private int _cardsStackIndex = 0;
+  private readonly List<Card> _spareCards = [];
+
+  public Pasjans(Mode mode)
   {
+    _mode = mode;
+
     GenerateCards();
     DealCards();
+    FlipCards();
   }
 
   private void GenerateCards()
@@ -128,6 +160,14 @@ public class Pasjans
     }
   }
 
+  private void FlipCards()
+  {
+    foreach (var card in _cards)
+    {
+      card.IsFaceUp = true;
+    }
+  }
+
   public void PrintBoard()
   {
     for (var i = 0; i < 7; i++)
@@ -145,10 +185,86 @@ public class Pasjans
           continue;
         }
 
-        Console.Write(column[i].ToString());
+        var card = column[i];
+
+        card.Print();
       }
 
       Console.WriteLine();
     }
+
+    foreach (var card in _spareCards)
+    {
+      card.Print();
+    }
+
+    Console.WriteLine();
+  }
+
+  public void MoveCardFromColumnToColumn(int fromColumnIndex, int fromRowIndex, int toColumnIndex)
+  {
+    if (fromColumnIndex == toColumnIndex) return;
+    if (fromColumnIndex > 7 || toColumnIndex > 7) return;
+
+    var fromColumn = _columns[fromColumnIndex];
+    var toColumn = _columns[toColumnIndex];
+
+    var fromCard = fromColumn[fromRowIndex];
+    if (!fromCard.IsFaceUp) return;
+
+    var toCard = toColumn.LastOrDefault();
+
+    if (!fromCard.IsKing())
+    {
+      if (toCard is null) return;
+
+      if (fromCard.ToColor() == toCard?.ToColor()) return;
+      if (fromCard.Value + 1 != toCard?.Value) return;
+    }
+
+    var stack = fromColumn.GetRange(fromRowIndex, fromColumn.Count - fromRowIndex);
+    toColumn.AddRange(stack);
+    fromColumn.RemoveRange(fromRowIndex, stack.Count);
+  }
+
+  public void DrawCards()
+  {
+    _spareCards.Clear();
+    _spareCards.AddRange(
+      _cards.GetRange(_cardsStackIndex, 3)
+    );
+
+    if (_cardsStackIndex + 3 >= _cards.Count)
+    {
+      _cardsStackIndex = 0;
+      _spareCards.Clear();
+      ShuffleCards();
+      return;
+    }
+
+    _cardsStackIndex += _mode is Mode.Easy ? 1 : 3;
+  }
+
+  public void MoveCardFromSpareToColumn(int toColumnIndex)
+  {
+    if (toColumnIndex > 7) return;
+
+    var fromCard = _spareCards.Last();
+    var toColumn = _columns[toColumnIndex];
+
+    var toCard = toColumn.LastOrDefault();
+
+    if (!fromCard.IsKing())
+    {
+      if (toCard is null) return;
+
+      if (fromCard.ToColor() == toCard?.ToColor()) return;
+      if (fromCard.Value + 1 != toCard?.Value) return;
+    }
+
+    toColumn.Add(fromCard);
+    _spareCards.RemoveAt(_spareCards.Count - 1);
+    _cards.Remove(fromCard);
+    _cardsStackIndex--;
   }
 }
