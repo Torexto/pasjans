@@ -101,8 +101,7 @@ public class Pasjans
   ];
 
   private readonly Mode _mode;
-  private int _cardsStackIndex = 0;
-  private readonly List<Card> _spareCards = [];
+  private int _cardsStackIndex;
 
   public Pasjans(Mode mode)
   {
@@ -170,7 +169,14 @@ public class Pasjans
 
   public void PrintBoard()
   {
-    for (var i = 0; i < 7; i++)
+    var max = 0;
+
+    foreach (var column in _columns)
+    {
+      max = Math.Max(max, column.Count);
+    }
+
+    for (var i = 0; i < max; i++)
     {
       foreach (var column in _columns)
       {
@@ -193,10 +199,23 @@ public class Pasjans
       Console.WriteLine();
     }
 
-    foreach (var card in _spareCards)
+    Console.Write($"Pozostało: {_cards.Count - _cardsStackIndex} ");
+
+    foreach (var card in _cards.GetRange(0, _cardsStackIndex))
     {
       card.Print();
     }
+
+    Console.WriteLine();
+
+    foreach (var stack in _endingStacks)
+    {
+      stack.LastOrDefault()?.Print();
+    }
+
+    Console.WriteLine();
+
+    Console.WriteLine(CheckIfWin());
 
     Console.WriteLine();
   }
@@ -229,15 +248,9 @@ public class Pasjans
 
   public void DrawCards()
   {
-    _spareCards.Clear();
-    _spareCards.AddRange(
-      _cards.GetRange(_cardsStackIndex, 3)
-    );
-
-    if (_cardsStackIndex + 3 >= _cards.Count)
+    if (_cardsStackIndex >= _cards.Count)
     {
       _cardsStackIndex = 0;
-      _spareCards.Clear();
       ShuffleCards();
       return;
     }
@@ -249,7 +262,7 @@ public class Pasjans
   {
     if (toColumnIndex > 7) return;
 
-    var fromCard = _spareCards.Last();
+    var fromCard = _cards.GetRange(0, _cardsStackIndex).Last();
     var toColumn = _columns[toColumnIndex];
 
     var toCard = toColumn.LastOrDefault();
@@ -263,7 +276,118 @@ public class Pasjans
     }
 
     toColumn.Add(fromCard);
-    _spareCards.RemoveAt(_spareCards.Count - 1);
+    _cards.Remove(fromCard);
+    _cardsStackIndex--;
+  }
+
+  public void MoveCardFromColumnToEndingStack(int toColumnIndex)
+  {
+    if (toColumnIndex > 7) return;
+
+    var fromColumn = _columns[toColumnIndex];
+    var fromCard = fromColumn.LastOrDefault();
+
+    if (fromCard is null) return;
+
+    List<Card>? toColumn;
+
+    switch (fromCard.Type)
+    {
+      case CardType.Karo:
+        toColumn = _endingStacks[0];
+        break;
+      case CardType.Kier:
+        toColumn = _endingStacks[1];
+        break;
+      case CardType.Pik:
+        toColumn = _endingStacks[2];
+        break;
+      case CardType.Trefl:
+        toColumn = _endingStacks[3];
+        break;
+      default:
+        return;
+    }
+
+    var toCard = toColumn.LastOrDefault();
+    if (fromCard.Value != CardValue.Ace)
+    {
+      if (toCard is null) return;
+      if (fromCard.Value - 1 != toCard?.Value) return;
+    }
+
+    toColumn.Add(fromCard);
+    fromColumn.RemoveAt(fromColumn.Count - 1);
+  }
+
+  public void MoveCardFromEndingStackToColumn(int fromColumnIndex, int toColumnIndex)
+  {
+    if (toColumnIndex > 7) return;
+    if (fromColumnIndex > 4) return;
+
+    var fromColumn = _endingStacks[fromColumnIndex];
+    var toColumn = _columns[toColumnIndex];
+
+    var fromCard = fromColumn.LastOrDefault();
+    var toCard = toColumn.LastOrDefault();
+
+    if (fromCard is null || toCard is null) return;
+
+    if (fromCard.ToColor() == toCard?.ToColor()) return;
+    if (fromCard.Value + 1 != toCard?.Value) return;
+
+    toColumn.Add(fromCard);
+    fromColumn.RemoveAt(fromColumn.Count - 1);
+  }
+
+  private bool CheckIfWin()
+  {
+    var isWin = true;
+
+    foreach (var stack in _endingStacks)
+    {
+      isWin = stack.Count == 13;
+    }
+
+    return isWin;
+  }
+
+  public void MoveCardFromSpareToEndingStack()
+  {
+    var spareCards = _cards.GetRange(0,  _cardsStackIndex);
+    var fromCard = spareCards.LastOrDefault();
+
+    if (fromCard is null) return;
+
+    List<Card>? toColumn;
+
+    switch (fromCard.Type)
+    {
+      case CardType.Karo:
+        toColumn = _endingStacks[0];
+        break;
+      case CardType.Kier:
+        toColumn = _endingStacks[1];
+        break;
+      case CardType.Pik:
+        toColumn = _endingStacks[2];
+        break;
+      case CardType.Trefl:
+        toColumn = _endingStacks[3];
+        break;
+      default:
+        return;
+    }
+
+    var toCard = toColumn.LastOrDefault();
+    if (fromCard.Value != CardValue.Ace)
+    {
+      if (toCard is null) return;
+      if (fromCard.Value - 1 != toCard?.Value) return;
+    }
+
+    toColumn.Add(fromCard);
+    spareCards.RemoveAt(spareCards.Count - 1);
     _cards.Remove(fromCard);
     _cardsStackIndex--;
   }
