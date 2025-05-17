@@ -1,3 +1,3 @@
 ﻿using Pasjans;
 
-Menu.MainMenu();
+MainMenu.Create();

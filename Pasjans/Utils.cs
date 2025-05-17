@@ -2,7 +2,7 @@ using System.ComponentModel;
 
 namespace Pasjans;
 
-public class Utils
+public static class Utils
 {
   public static string GetDescription(Enum value)
   {
