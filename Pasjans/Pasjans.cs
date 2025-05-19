@@ -48,7 +48,7 @@ public record Move(MoveType Type, List<Card> Cards, int FromIndex, int ToIndex, 
 
 public record Card(CardType Type, CardValue Value)
 {
-  public bool IsFaceUp { get; set; }
+  public bool IsFaceUp { get; set; } = true;
 
   public override string ToString()
   {
@@ -76,71 +76,51 @@ public record Card(CardType Type, CardValue Value)
 
 public class Pasjans
 {
-  private readonly List<Card> _cards = new(52);
+  public uint Moves { get; private set; }
 
-  private readonly List<List<Card>> _columns =
-  [
-    new(),
-    new(),
-    new(),
-    new(),
-    new(),
-    new(),
-    new()
-  ];
+  private const int UndoStackSize = 3;
 
-  private readonly List<List<Card>> _endingStacks =
-  [
-    new(),
-    new(),
-    new(),
-    new()
-  ];
-
+  private readonly List<Card> _deck = new(52);
+  private readonly UndoStack _undoStack = new(UndoStackSize);
+  private readonly IReadOnlyList<List<Card>> _columns = CreateEmptyLists<Card>(7);
+  private readonly IReadOnlyList<List<Card>> _endingStacks = CreateEmptyLists<Card>(4);
   private readonly Mode _mode;
-  private readonly Stack<Move> _undoStack = new();
-  private int _cardsStackIndex;
-  public uint Moves;
-
+  private int _drawPileIndex;
 
   public Pasjans(Mode mode)
   {
     _mode = mode;
 
-    GenerateCards();
-    DealCards();
-    FlipCards();
+    InitializeDeck();
+    InitializeColumns();
   }
 
-  private void GenerateCards()
+  private void InitializeDeck()
   {
-    ClearCards();
+    _deck.Clear();
 
     foreach (var type in Enum.GetValues<CardType>())
     foreach (var value in Enum.GetValues<CardValue>())
-      _cards.Add(new Card(type, value));
+      _deck.Add(new Card(type, value));
 
-    ShuffleCards();
+    ShuffleDeck();
   }
 
-  private void ClearCards()
+  private void ShuffleDeck()
   {
-    _cards.Clear();
-  }
-
-  private void ShuffleCards()
-  {
-    var index = _cards.Count;
+    var index = _deck.Count;
 
     while (index > 1)
     {
       var randomIndex = Random.Shared.Next(index--);
-      (_cards[index], _cards[randomIndex]) = (_cards[randomIndex], _cards[index]);
+      (_deck[index], _deck[randomIndex]) = (_deck[randomIndex], _deck[index]);
     }
   }
 
   private static void MoveCard(Card card, List<Card> from, List<Card> to)
   {
+    if (!from.Contains(card)) return;
+
     to.Add(card);
     from.Remove(card);
   }
@@ -152,24 +132,17 @@ public class Pasjans
     from.RemoveRange(from.Count - count, count);
   }
 
-  private void DealCards()
+  private void InitializeColumns()
   {
-    var len = 1;
-
-    foreach (var column in _columns)
+    foreach (var (column, index) in _columns.Select((c, i) => (c, i)))
     {
-      for (var i = 0; i < len; i++)
+      for (var i = 0; i <= index; i++)
       {
-        MoveCard(_cards.Last(), _cards, column);
+        var card = _deck.Last();
+        card.IsFaceUp = false;
+        MoveCard(card, _deck, column);
       }
-
-      len++;
     }
-  }
-
-  private void FlipCards()
-  {
-    foreach (var card in _cards) card.IsFaceUp = true;
   }
 
   public void PrintBoard()
@@ -203,27 +176,17 @@ public class Pasjans
       Console.WriteLine($" {i + 1}");
     }
 
-    if (_cardsStackIndex <= _cards.Count)
-    {
-      Console.Write($"Pozostało: {_cards.Count - _cardsStackIndex} ");
+    Console.Write($"Pozostało: {_deck.Count - _drawPileIndex} ");
 
-      foreach (var card in _cards.GetRange(0, _cardsStackIndex))
-        card.Print();
-    }
-    else
-    {
-      Console.Write($"Pozostało: 0 ");
-
-      foreach (var card in _cards)
-        card.Print();
-    }
+    foreach (var card in _deck.GetRange(0, _drawPileIndex))
+      card.Print();
 
     Console.WriteLine();
 
     foreach (var stack in _endingStacks)
     {
       if (stack.Count > 0)
-        stack.LastOrDefault()?.Print();
+        stack.Last().Print();
       else
         Console.Write("###");
 
@@ -240,28 +203,31 @@ public class Pasjans
   public void MoveBetweenColumns(int fromColumnIndex, int fromRowIndex, int toColumnIndex)
   {
     if (fromColumnIndex == toColumnIndex) return;
-    if (fromColumnIndex > 7 || toColumnIndex > 7) return;
+
+    if (fromColumnIndex < 0 || fromColumnIndex >= _columns.Count) return;
+    if (toColumnIndex < 0 || toColumnIndex >= _columns.Count) return;
 
     var fromColumn = _columns[fromColumnIndex];
     var toColumn = _columns[toColumnIndex];
 
-    if (fromColumn.Count <= fromRowIndex) return;
+    if (fromRowIndex < 0 || fromRowIndex >= fromColumn.Count) return;
 
-    var fromCard = fromColumn[fromRowIndex];
-    if (!fromCard.IsFaceUp) return;
+    var card = fromColumn[fromRowIndex];
+    if (!card.IsFaceUp) return;
 
     var toCard = toColumn.LastOrDefault();
 
-    if (fromCard.Value != CardValue.King)
+    if (!(card.Value == CardValue.King && toCard is null))
     {
       if (toCard is null) return;
 
-      if (fromCard.ToColor() == toCard.ToColor()) return;
-      if (fromCard.Value + 1 != toCard.Value) return;
+      if (card.ToColor() == toCard.ToColor()) return;
+      if (card.Value + 1 != toCard.Value) return;
     }
 
-    var stack = fromColumn.GetRange(fromRowIndex, fromColumn.Count - fromRowIndex);
     var count = fromColumn.Count - fromRowIndex;
+    var stack = fromColumn.GetRange(fromRowIndex, count);
+
     MoveCards(fromColumn, toColumn, count);
 
     _undoStack.Push(new Move(MoveType.ColumnToColumn, [..stack], fromColumnIndex, toColumnIndex));
@@ -271,30 +237,35 @@ public class Pasjans
 
   public void DrawCards()
   {
-    if (_cardsStackIndex >= _cards.Count)
+    if (_deck.Count == 0) return;
+
+    if (_drawPileIndex >= _deck.Count)
     {
-      _cardsStackIndex = 0;
-      ShuffleCards();
+      _drawPileIndex = 0;
+      ShuffleDeck();
       return;
     }
 
-    _undoStack.Push(new Move(MoveType.Draw, new List<Card>(), -1, -1, _cardsStackIndex));
-    _cardsStackIndex += _mode is Mode.Easy ? 1 : 3;
+    _undoStack.Push(new Move(MoveType.Draw, [], -1, -1, _drawPileIndex));
+
+    _drawPileIndex += _mode == Mode.Easy ? 1 : 3;
+
+    _drawPileIndex = Math.Clamp(_drawPileIndex, 0, _deck.Count);
 
     Moves++;
   }
 
   public void MoveFromPileToColumn(int toColumnIndex)
   {
-    if (_cardsStackIndex == 0) return;
-    if (toColumnIndex > 7) return;
+    if (toColumnIndex < 0 || toColumnIndex >= _columns.Count) return;
+    if (_drawPileIndex == 0) return;
 
-    var card = _cards.GetRange(0, _cardsStackIndex).Last();
+    var card = _deck[_drawPileIndex - 1];
+
     var toColumn = _columns[toColumnIndex];
-
     var toCard = toColumn.LastOrDefault();
 
-    if (card.Value != CardValue.King)
+    if (!(card.Value == CardValue.King && toCard is null))
     {
       if (toCard is null) return;
 
@@ -302,11 +273,11 @@ public class Pasjans
       if (card.Value + 1 != toCard.Value) return;
     }
 
-    MoveCard(card, _cards, toColumn);
+    MoveCard(card, _deck, toColumn);
 
     _undoStack.Push(new Move(MoveType.PileToColumn, [card], -1, toColumnIndex));
 
-    _cardsStackIndex--;
+    _drawPileIndex--;
     Moves++;
   }
 
@@ -385,7 +356,7 @@ public class Pasjans
 
   public void MoveFromPileToEndingStack()
   {
-    var spareCards = _cards.GetRange(0, _cardsStackIndex);
+    var spareCards = _deck.GetRange(0, _drawPileIndex);
     var card = spareCards.LastOrDefault();
 
     if (card is null) return;
@@ -419,18 +390,18 @@ public class Pasjans
       if (card.Value - 1 != toCard.Value) return;
     }
 
-    MoveCard(card, _cards, toColumn);
+    MoveCard(card, _deck, toColumn);
 
-    _cardsStackIndex--;
+    _drawPileIndex--;
     _undoStack.Push(new Move(MoveType.PileToEnding, [card], -1, toStackIndex));
     Moves++;
   }
 
   public void Undo()
   {
-    if (_undoStack.Count == 0) return;
-
     var move = _undoStack.Pop();
+
+    if (move is null) return;
 
     switch (move.Type)
     {
@@ -443,8 +414,8 @@ public class Pasjans
 
       case MoveType.PileToColumn:
         _columns[move.ToIndex].RemoveAt(_columns[move.ToIndex].Count - 1);
-        _cards.Insert(_cardsStackIndex, move.Cards[0]);
-        _cardsStackIndex++;
+        _deck.Insert(_drawPileIndex, move.Cards[0]);
+        _drawPileIndex++;
         break;
 
       case MoveType.ColumnToEnding:
@@ -459,12 +430,12 @@ public class Pasjans
 
       case MoveType.PileToEnding:
         _endingStacks[move.ToIndex].RemoveAt(_endingStacks[move.ToIndex].Count - 1);
-        _cards.Insert(_cardsStackIndex, move.Cards[0]);
-        _cardsStackIndex++;
+        _deck.Insert(_drawPileIndex, move.Cards[0]);
+        _drawPileIndex++;
         break;
 
       case MoveType.Draw:
-        _cardsStackIndex = move.PreviousStackIndex;
+        _drawPileIndex = move.PreviousStackIndex;
         break;
     }
 

@@ -10,4 +10,12 @@ public static class Utils
     var attributes = (DescriptionAttribute[])field!.GetCustomAttributes(typeof(DescriptionAttribute), false);
     return attributes.Length > 0 ? attributes[0].Description : value.ToString();
   }
+
+  public static IReadOnlyList<List<T>> CreateEmptyLists<T>(int count)
+  {
+    var stacks = new List<List<T>>(count);
+    for (var i = 0; i < count; i++)
+      stacks.Add([]);
+    return stacks;
+  }
 }
