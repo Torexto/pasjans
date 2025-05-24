@@ -5,7 +5,63 @@ namespace Pasjans;
 
 public abstract class GameMenu : Menu
 {
-  public static void Create(Mode mode)
+
+  private static void PrintBoard(Pasjans game)
+  {
+    var max = game.Columns.Select(column => column.Count).Max();
+
+    for (var i = 1; i <= 7; i++) Write($"  {i} ");
+
+    WriteLine();
+
+    for (var i = 0; i < max; i++)
+    {
+      foreach (var column in game.Columns)
+      {
+        Write(" ");
+
+        if (column.Count - 1 == i)
+          column[i].IsFaceUp = true;
+
+        if (column.Count <= i)
+        {
+          Write("   ");
+          continue;
+        }
+
+        var card = column[i];
+
+        card.Print();
+      }
+
+      WriteLine($" {i + 1}");
+    }
+
+    Write($"Pozostało: {game.Deck.Count - game.DrawPileIndex} ");
+
+    foreach (var card in game.Deck.GetRange(0, game.DrawPileIndex))
+      card.Print();
+
+    WriteLine();
+
+    foreach (var stack in game.EndingStacks)
+    {
+      if (stack.Count > 0)
+        stack.Last().Print();
+      else
+        Write("###");
+
+      Write(" ");
+    }
+
+    WriteLine();
+
+    WriteLine(game.Moves);
+
+    WriteLine();
+  }
+
+  public static void Create(Pasjans.Mode mode)
   {
     var game = new Pasjans(mode);
     var selectedOption = GameMenuOption.DrawCards;
@@ -27,7 +83,7 @@ public abstract class GameMenu : Menu
         return;
       }
 
-      game.PrintBoard();
+      PrintBoard(game);
 
       PrintMenu(selectedOption);
 

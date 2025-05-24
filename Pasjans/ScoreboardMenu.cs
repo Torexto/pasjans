@@ -2,7 +2,7 @@ using static System.Console;
 
 namespace Pasjans;
 
-public abstract class ScoreboardMenu
+public static class ScoreboardMenu
 {
   public static readonly List<uint> Scores = [];
 

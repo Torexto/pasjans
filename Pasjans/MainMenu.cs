@@ -30,10 +30,10 @@ public abstract class MainMenu : Menu
           switch (selectedOption)
           {
             case MainMenuOptions.PlayEasy:
-              GameMenu.Create(Mode.Easy);
+              GameMenu.Create(Pasjans.Mode.Easy);
               break;
             case MainMenuOptions.PlayHard:
-              GameMenu.Create(Mode.Hard);
+              GameMenu.Create(Pasjans.Mode.Hard);
               break;
             case MainMenuOptions.Ranking:
               ScoreboardMenu.Create();

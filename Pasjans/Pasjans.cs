@@ -1,95 +1,34 @@
-using System.ComponentModel;
 using static Pasjans.Utils;
 
 namespace Pasjans;
 
-public enum Mode
-{
-  Easy,
-  Hard
-}
-
-public enum CardType
-{
-  [Description("♥")] Kier,
-  [Description("♦")] Karo,
-  [Description("♠")] Pik,
-  [Description("♣")] Trefl
-}
-
-public enum CardValue
-{
-  [Description("A")] Ace,
-  [Description("2")] Two,
-  [Description("3")] Three,
-  [Description("4")] Four,
-  [Description("5")] Five,
-  [Description("6")] Six,
-  [Description("7")] Seven,
-  [Description("8")] Eight,
-  [Description("9")] Nine,
-  [Description("10")] Ten,
-  [Description("J")] Jack,
-  [Description("Q")] Queen,
-  [Description("K")] King
-}
-
-public enum MoveType
-{
-  ColumnToColumn,
-  PileToColumn,
-  ColumnToEnding,
-  EndingToColumn,
-  PileToEnding,
-  Draw
-}
-
-public record Move(MoveType Type, List<Card> Cards, int FromIndex, int ToIndex, int PreviousStackIndex = 0);
-
-public record Card(CardType Type, CardValue Value)
-{
-  public bool IsFaceUp { get; set; } = true;
-
-  public override string ToString()
-  {
-    var description = $"{GetDescription(Value)}{GetDescription(Type)}";
-
-    if (IsFaceUp) return description.Length < 3 ? description + " " : description;
-
-    return "###";
-  }
-
-  public ConsoleColor ToColor()
-  {
-    return Type is CardType.Kier or CardType.Karo ? ConsoleColor.Black : ConsoleColor.Red;
-  }
-
-  public void Print()
-  {
-    Console.ForegroundColor = IsFaceUp
-      ? ToColor()
-      : ConsoleColor.White;
-    Console.Write(ToString());
-    Console.ForegroundColor = ConsoleColor.White;
-  }
-}
-
 public class Pasjans
 {
-  public uint Moves { get; private set; }
+  public enum Mode
+  {
+    Easy,
+    Hard
+  }
 
   private const int UndoStackSize = 3;
 
-  private readonly List<Card> _deck = new(52);
+  public uint Moves { get; private set; }
+  public int DrawPileIndex { get; private set; }
+
+  public List<Card> Deck { get; }
+  public IReadOnlyList<List<Card>> Columns { get; }
+  public IReadOnlyList<List<Card>> EndingStacks { get; }
+
   private readonly UndoStack _undoStack = new(UndoStackSize);
-  private readonly IReadOnlyList<List<Card>> _columns = CreateEmptyLists<Card>(7);
-  private readonly IReadOnlyList<List<Card>> _endingStacks = CreateEmptyLists<Card>(4);
   private readonly Mode _mode;
-  private int _drawPileIndex;
 
   public Pasjans(Mode mode)
   {
     _mode = mode;
+
+    Deck = new List<Card>(52);
+    Columns = CreateEmptyLists<Card>(7);
+    EndingStacks = CreateEmptyLists<Card>(4);
 
     InitializeDeck();
     InitializeColumns();
@@ -97,23 +36,23 @@ public class Pasjans
 
   private void InitializeDeck()
   {
-    _deck.Clear();
+    Deck.Clear();
 
     foreach (var type in Enum.GetValues<CardType>())
     foreach (var value in Enum.GetValues<CardValue>())
-      _deck.Add(new Card(type, value));
+      Deck.Add(new Card(type, value));
 
     ShuffleDeck();
   }
 
   private void ShuffleDeck()
   {
-    var index = _deck.Count;
+    var index = Deck.Count;
 
     while (index > 1)
     {
       var randomIndex = Random.Shared.Next(index--);
-      (_deck[index], _deck[randomIndex]) = (_deck[randomIndex], _deck[index]);
+      (Deck[index], Deck[randomIndex]) = (Deck[randomIndex], Deck[index]);
     }
   }
 
@@ -134,81 +73,26 @@ public class Pasjans
 
   private void InitializeColumns()
   {
-    foreach (var (column, index) in _columns.Select((c, i) => (c, i)))
+    foreach (var (column, index) in Columns.Select((c, i) => (c, i)))
     {
       for (var i = 0; i <= index; i++)
       {
-        var card = _deck.Last();
+        var card = Deck.Last();
         card.IsFaceUp = false;
-        MoveCard(card, _deck, column);
+        MoveCard(card, Deck, column);
       }
     }
-  }
-
-  public void PrintBoard()
-  {
-    var max = _columns.Select(column => column.Count).Max();
-
-    for (var i = 1; i <= 7; i++) Console.Write($"  {i} ");
-
-    Console.WriteLine();
-
-    for (var i = 0; i < max; i++)
-    {
-      foreach (var column in _columns)
-      {
-        Console.Write(" ");
-
-        if (column.Count - 1 == i)
-          column[i].IsFaceUp = true;
-
-        if (column.Count <= i)
-        {
-          Console.Write("   ");
-          continue;
-        }
-
-        var card = column[i];
-
-        card.Print();
-      }
-
-      Console.WriteLine($" {i + 1}");
-    }
-
-    Console.Write($"Pozostało: {_deck.Count - _drawPileIndex} ");
-
-    foreach (var card in _deck.GetRange(0, _drawPileIndex))
-      card.Print();
-
-    Console.WriteLine();
-
-    foreach (var stack in _endingStacks)
-    {
-      if (stack.Count > 0)
-        stack.Last().Print();
-      else
-        Console.Write("###");
-
-      Console.Write(" ");
-    }
-
-    Console.WriteLine();
-
-    Console.WriteLine(Moves);
-
-    Console.WriteLine();
   }
 
   public void MoveBetweenColumns(int fromColumnIndex, int fromRowIndex, int toColumnIndex)
   {
     if (fromColumnIndex == toColumnIndex) return;
 
-    if (fromColumnIndex < 0 || fromColumnIndex >= _columns.Count) return;
-    if (toColumnIndex < 0 || toColumnIndex >= _columns.Count) return;
+    if (fromColumnIndex < 0 || fromColumnIndex >= Columns.Count) return;
+    if (toColumnIndex < 0 || toColumnIndex >= Columns.Count) return;
 
-    var fromColumn = _columns[fromColumnIndex];
-    var toColumn = _columns[toColumnIndex];
+    var fromColumn = Columns[fromColumnIndex];
+    var toColumn = Columns[toColumnIndex];
 
     if (fromRowIndex < 0 || fromRowIndex >= fromColumn.Count) return;
 
@@ -237,32 +121,32 @@ public class Pasjans
 
   public void DrawCards()
   {
-    if (_deck.Count == 0) return;
+    if (Deck.Count == 0) return;
 
-    if (_drawPileIndex >= _deck.Count)
+    if (DrawPileIndex >= Deck.Count)
     {
-      _drawPileIndex = 0;
+      DrawPileIndex = 0;
       ShuffleDeck();
       return;
     }
 
-    _undoStack.Push(new Move(MoveType.Draw, [], -1, -1, _drawPileIndex));
+    _undoStack.Push(new Move(MoveType.Draw, [], -1, -1, DrawPileIndex));
 
-    _drawPileIndex += _mode == Mode.Easy ? 1 : 3;
+    DrawPileIndex += _mode == Mode.Easy ? 1 : 3;
 
-    _drawPileIndex = Math.Clamp(_drawPileIndex, 0, _deck.Count);
+    DrawPileIndex = Math.Clamp(DrawPileIndex, 0, Deck.Count);
 
     Moves++;
   }
 
   public void MoveFromPileToColumn(int toColumnIndex)
   {
-    if (toColumnIndex < 0 || toColumnIndex >= _columns.Count) return;
-    if (_drawPileIndex == 0) return;
+    if (toColumnIndex < 0 || toColumnIndex >= Columns.Count) return;
+    if (DrawPileIndex == 0) return;
 
-    var card = _deck[_drawPileIndex - 1];
+    var card = Deck[DrawPileIndex - 1];
 
-    var toColumn = _columns[toColumnIndex];
+    var toColumn = Columns[toColumnIndex];
     var toCard = toColumn.LastOrDefault();
 
     if (!(card.Value == CardValue.King && toCard is null))
@@ -273,11 +157,11 @@ public class Pasjans
       if (card.Value + 1 != toCard.Value) return;
     }
 
-    MoveCard(card, _deck, toColumn);
+    MoveCard(card, Deck, toColumn);
 
     _undoStack.Push(new Move(MoveType.PileToColumn, [card], -1, toColumnIndex));
 
-    _drawPileIndex--;
+    DrawPileIndex--;
     Moves++;
   }
 
@@ -285,7 +169,7 @@ public class Pasjans
   {
     if (fromColumnIndex > 7) return;
 
-    var fromColumn = _columns[fromColumnIndex];
+    var fromColumn = Columns[fromColumnIndex];
     var card = fromColumn.LastOrDefault();
 
     if (card is null) return;
@@ -310,7 +194,7 @@ public class Pasjans
         return;
     }
 
-    var toColumn = _endingStacks[toStackIndex];
+    var toColumn = EndingStacks[toStackIndex];
 
     var toCard = toColumn.LastOrDefault();
     if (card.Value != CardValue.Ace)
@@ -331,8 +215,8 @@ public class Pasjans
     if (toColumnIndex > 7) return;
     if (fromStackIndex > 4) return;
 
-    var fromColumn = _endingStacks[fromStackIndex];
-    var toColumn = _columns[toColumnIndex];
+    var fromColumn = EndingStacks[fromStackIndex];
+    var toColumn = Columns[toColumnIndex];
 
     var card = fromColumn.LastOrDefault();
     var toCard = toColumn.LastOrDefault();
@@ -351,12 +235,12 @@ public class Pasjans
 
   public bool CheckIfWin()
   {
-    return _endingStacks.All(stack => stack.Count == 13);
+    return EndingStacks.All(stack => stack.Count == 13);
   }
 
   public void MoveFromPileToEndingStack()
   {
-    var spareCards = _deck.GetRange(0, _drawPileIndex);
+    var spareCards = Deck.GetRange(0, DrawPileIndex);
     var card = spareCards.LastOrDefault();
 
     if (card is null) return;
@@ -381,7 +265,7 @@ public class Pasjans
         return;
     }
 
-    var toColumn = _endingStacks[toStackIndex];
+    var toColumn = EndingStacks[toStackIndex];
 
     var toCard = toColumn.LastOrDefault();
     if (card.Value != CardValue.Ace)
@@ -390,9 +274,9 @@ public class Pasjans
       if (card.Value - 1 != toCard.Value) return;
     }
 
-    MoveCard(card, _deck, toColumn);
+    MoveCard(card, Deck, toColumn);
 
-    _drawPileIndex--;
+    DrawPileIndex--;
     _undoStack.Push(new Move(MoveType.PileToEnding, [card], -1, toStackIndex));
     Moves++;
   }
@@ -406,36 +290,36 @@ public class Pasjans
     switch (move.Type)
     {
       case MoveType.ColumnToColumn:
-        var toCol = _columns[move.ToIndex];
-        var fromCol = _columns[move.FromIndex];
+        var toCol = Columns[move.ToIndex];
+        var fromCol = Columns[move.FromIndex];
         for (var i = 0; i < move.Cards.Count; i++) toCol.RemoveAt(toCol.Count - 1);
         fromCol.AddRange(move.Cards);
         break;
 
       case MoveType.PileToColumn:
-        _columns[move.ToIndex].RemoveAt(_columns[move.ToIndex].Count - 1);
-        _deck.Insert(_drawPileIndex, move.Cards[0]);
-        _drawPileIndex++;
+        Columns[move.ToIndex].RemoveAt(Columns[move.ToIndex].Count - 1);
+        Deck.Insert(DrawPileIndex, move.Cards[0]);
+        DrawPileIndex++;
         break;
 
       case MoveType.ColumnToEnding:
-        _endingStacks[move.ToIndex].RemoveAt(_endingStacks[move.ToIndex].Count - 1);
-        _columns[move.FromIndex].Add(move.Cards[0]);
+        EndingStacks[move.ToIndex].RemoveAt(EndingStacks[move.ToIndex].Count - 1);
+        Columns[move.FromIndex].Add(move.Cards[0]);
         break;
 
       case MoveType.EndingToColumn:
-        _columns[move.ToIndex].RemoveAt(_columns[move.ToIndex].Count - 1);
-        _endingStacks[move.FromIndex].Add(move.Cards[0]);
+        Columns[move.ToIndex].RemoveAt(Columns[move.ToIndex].Count - 1);
+        EndingStacks[move.FromIndex].Add(move.Cards[0]);
         break;
 
       case MoveType.PileToEnding:
-        _endingStacks[move.ToIndex].RemoveAt(_endingStacks[move.ToIndex].Count - 1);
-        _deck.Insert(_drawPileIndex, move.Cards[0]);
-        _drawPileIndex++;
+        EndingStacks[move.ToIndex].RemoveAt(EndingStacks[move.ToIndex].Count - 1);
+        Deck.Insert(DrawPileIndex, move.Cards[0]);
+        DrawPileIndex++;
         break;
 
       case MoveType.Draw:
-        _drawPileIndex = move.PreviousStackIndex;
+        DrawPileIndex = move.PreviousStackIndex;
         break;
     }
 
