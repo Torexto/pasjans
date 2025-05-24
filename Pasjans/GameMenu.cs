@@ -5,7 +5,6 @@ namespace Pasjans;
 
 public abstract class GameMenu : Menu
 {
-
   private static void PrintBoard(Pasjans game)
   {
     var max = game.Columns.Select(column => column.Count).Max();
