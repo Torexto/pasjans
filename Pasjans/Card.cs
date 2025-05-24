@@ -4,10 +4,10 @@ namespace Pasjans;
 
 public enum CardType
 {
-  [Description("♥")] Kier,
-  [Description("♦")] Karo,
-  [Description("♠")] Pik,
-  [Description("♣")] Trefl
+  [Description("\u2665")] Kier,
+  [Description("\u2666")] Karo,
+  [Description("\u2660")] Pik,
+  [Description("\u2663")] Trefl
 }
 
 public enum CardValue
@@ -51,6 +51,6 @@ public record Card(CardType Type, CardValue Value)
       ? ToColor()
       : ConsoleColor.White;
     Console.Write(ToString());
-    Console.ForegroundColor = ConsoleColor.White;
+    Console.ResetColor();
   }
 }

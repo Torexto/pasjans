@@ -1,12 +1,12 @@
 using System.ComponentModel;
 using static System.Console;
-
 namespace Pasjans;
 
 public abstract class MainMenu : Menu
 {
   public static void Create()
   {
+    CursorVisible = false;
     var selectedOption = MainMenuOptions.PlayEasy;
 
     while (true)
@@ -26,6 +26,10 @@ public abstract class MainMenu : Menu
         case ConsoleKey.UpArrow:
           PreviousOption(ref selectedOption);
           break;
+        case ConsoleKey.Q:
+          Clear();
+          Environment.Exit(0);
+          break;
         case ConsoleKey.Enter:
           switch (selectedOption)
           {
@@ -39,6 +43,7 @@ public abstract class MainMenu : Menu
               ScoreboardMenu.Create();
               break;
             case MainMenuOptions.Quit:
+              Clear();
               Environment.Exit(0);
               break;
           }

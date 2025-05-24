@@ -1,21 +1,20 @@
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using static System.Console;
 
 namespace Pasjans;
 
 public abstract class GameMenu : Menu
 {
-  private static void PrintBoard(Pasjans game)
+  private static void PrintBoard(Pasjans game, (int, int)? highlight = null)
   {
     var max = game.Columns.Select(column => column.Count).Max();
-
-    for (var i = 1; i <= 7; i++) Write($"  {i} ");
 
     WriteLine();
 
     for (var i = 0; i < max; i++)
     {
-      foreach (var column in game.Columns)
+      foreach (var (column, j) in game.Columns.Select((list, j) => (list, i: j)))
       {
         Write(" ");
 
@@ -28,36 +27,143 @@ public abstract class GameMenu : Menu
           continue;
         }
 
-        var card = column[i];
+        if (highlight is not null)
+        {
+          if (highlight.Value.Item2 == i && highlight.Value.Item1 == j)
+            BackgroundColor = ConsoleColor.Cyan;
+        }
 
-        card.Print();
+        column[i].Print();
+
+        ResetColor();
       }
 
       WriteLine($" {i + 1}");
     }
+  }
 
-    Write($"Pozostało: {game.Deck.Count - game.DrawPileIndex} ");
+  private static int? RowMenu(Pasjans game, int columnIndex)
+  {
+    var rowTracker = new IndexTracker(game.Columns[columnIndex].Count);
 
-    foreach (var card in game.Deck.GetRange(0, game.DrawPileIndex))
-      card.Print();
-
-    WriteLine();
-
-    foreach (var stack in game.EndingStacks)
+    while (true)
     {
-      if (stack.Count > 0)
-        stack.Last().Print();
-      else
-        Write("###");
+      Clear();
 
-      Write(" ");
+      PrintBoard(game, (columnIndex, rowTracker.Index - 1));
+
+      switch (ReadKey().Key)
+      {
+        case ConsoleKey.DownArrow:
+          rowTracker.Next();
+          break;
+        case ConsoleKey.UpArrow:
+          rowTracker.Previous();
+          break;
+        case ConsoleKey.Enter:
+          return rowTracker.Index;
+        case ConsoleKey.Q:
+          return null;
+      }
     }
+  }
 
-    WriteLine();
+  private static int? ColumnMenu(Pasjans game, [CallerMemberName] string name = "")
+  {
+    var columnTracker = new IndexTracker(7);
 
-    WriteLine(game.Moves);
+    while (true)
+    {
+      Clear();
 
-    WriteLine();
+      if (name == nameof(MoveFromPileToColumn))
+      {
+        var card = game.Deck.GetRange(0, game.DrawPileIndex).LastOrDefault();
+        if (card is null) return null;
+
+        Write(" ");
+
+        for (var i = 0; i < columnTracker.Index - 1; i++)
+          Write("    ");
+
+        card.Print();
+
+        WriteLine();
+      }
+
+      for (var j = 1; j <= 7; j++)
+      {
+        Write(" ");
+
+        if (columnTracker.Index == j)
+        {
+          BackgroundColor = ConsoleColor.Cyan;
+          ForegroundColor = ConsoleColor.Black;
+        }
+
+        Write($" {j} ");
+
+        ResetColor();
+      }
+
+      PrintBoard(game);
+
+      switch (ReadKey().Key)
+      {
+        case ConsoleKey.RightArrow:
+          columnTracker.Next();
+          break;
+        case ConsoleKey.LeftArrow:
+          columnTracker.Previous();
+          break;
+        case ConsoleKey.Enter:
+          return columnTracker.Index;
+        case ConsoleKey.Q:
+          return null;
+      }
+    }
+  }
+
+  private static int? EndingStackMenu(Pasjans game)
+  {
+    var endingStackTracker = new IndexTracker(4);
+
+    while (true)
+    {
+      Clear();
+
+      foreach (var (stack, i) in game.EndingStacks.Select((list, i) => (list, i)))
+      {
+        var card = stack.LastOrDefault();
+
+        if (endingStackTracker.Index == i + 1)
+          BackgroundColor = ConsoleColor.Cyan;
+
+        if (card is null)
+          Write("###");
+        else
+          card.Print();
+
+        ResetColor();
+
+        Write(" ");
+      }
+
+      switch (ReadKey().Key)
+      {
+        case ConsoleKey.RightArrow:
+          endingStackTracker.Next();
+          break;
+        case ConsoleKey.LeftArrow:
+          endingStackTracker.Previous();
+          break;
+        case ConsoleKey.Enter:
+          if (game.EndingStacks[endingStackTracker.Index - 1].Count < 1) return null;
+          return endingStackTracker.Index;
+        case ConsoleKey.Q:
+          return null;
+      }
+    }
   }
 
   public static void Create(Pasjans.Mode mode)
@@ -82,7 +188,35 @@ public abstract class GameMenu : Menu
         return;
       }
 
+      for (var i = 1; i <= 7; i++) Write($"  {i} ");
       PrintBoard(game);
+
+      WriteLine();
+
+      Write($"Pozostało: {game.Deck.Count - game.DrawPileIndex} ");
+
+      foreach (var card in game.Deck.GetRange(0, game.DrawPileIndex))
+        card.Print();
+
+      WriteLine();
+
+      foreach (var stack in game.EndingStacks)
+      {
+        var card = stack.LastOrDefault();
+
+        if (card is null)
+          Write("###");
+        else
+          card.Print();
+
+        Write(" ");
+      }
+
+      WriteLine();
+
+      WriteLine($"Ilość ruchów: {game.Moves}");
+
+      WriteLine();
 
       PrintMenu(selectedOption);
 
@@ -96,6 +230,8 @@ public abstract class GameMenu : Menu
         case ConsoleKey.UpArrow:
           PreviousOption(ref selectedOption);
           break;
+        case ConsoleKey.Q:
+          return;
         case ConsoleKey.Enter:
           switch (selectedOption)
           {
@@ -129,41 +265,44 @@ public abstract class GameMenu : Menu
     }
   }
 
-  private static bool GetNumber(string text, out int number)
-  {
-    WriteLine(text);
-    return int.TryParse(ReadLine(), out number);
-  }
-
   private static void MoveFromPileToColumn(Pasjans game)
   {
-    if (!GetNumber("Wybierz kolumnę do której chcesz przenieść kartę", out var toColumnIndex)) return;
-
-    game.MoveFromPileToColumn(toColumnIndex - 1);
+    var columnIndex = ColumnMenu(game);
+    if (columnIndex is null) return;
+    game.MoveFromPileToColumn(columnIndex.Value - 1);
   }
 
   private static void MoveBetweenColumns(Pasjans game)
   {
-    if (!GetNumber("Wybierz kolumnę z której chcesz przenieść kartę", out var fromColumnIndex)) return;
-    if (!GetNumber("Wybierz kartę z kolumny którą chcesz przenieść", out var fromRowIndex)) return;
-    if (!GetNumber("Wybierz kolumnę do której chcesz przenieść kartę", out var toColumnIndex)) return;
+    var fromColumnIndex = ColumnMenu(game);
+    if (fromColumnIndex is null) return;
 
-    game.MoveBetweenColumns(fromColumnIndex - 1, fromRowIndex - 1, toColumnIndex - 1);
+    var fromRowIndex = RowMenu(game, fromColumnIndex.Value - 1);
+    if (fromRowIndex is null) return;
+
+    var toColumnIndex = ColumnMenu(game);
+    if (toColumnIndex is null) return;
+
+    game.MoveBetweenColumns(fromColumnIndex.Value - 1, fromRowIndex.Value - 1, toColumnIndex.Value - 1);
   }
 
   private static void MoveFromColumnToEndingStack(Pasjans game)
   {
-    if (!GetNumber("Wybierz kolumnę z której chcesz przenieść kartę", out var fromColumnIndex)) return;
+    var columnIndex = ColumnMenu(game);
+    if (columnIndex is null) return;
 
-    game.MoveFromColumnToEndingStack(fromColumnIndex - 1);
+    game.MoveFromColumnToEndingStack(columnIndex.Value - 1);
   }
 
   private static void MoveFromEndingStackToColumn(Pasjans game)
   {
-    if (!GetNumber("Wybierz kolumnę z której chcesz przenieść kartę", out var fromColumnIndex)) return;
-    if (!GetNumber("Wybierz kolumnę do której chcesz przenieść kartę", out var toColumnIndex)) return;
+    var endingStackIndex = EndingStackMenu(game);
+    if (endingStackIndex is null) return;
 
-    game.MoveFromEndingStackToColumn(fromColumnIndex - 1, toColumnIndex - 1);
+    var columnIndex = ColumnMenu(game);
+    if (columnIndex is null) return;
+
+    game.MoveFromEndingStackToColumn(endingStackIndex.Value - 1, columnIndex.Value - 1);
   }
 
   private enum GameMenuOption
