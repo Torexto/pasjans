@@ -10,4 +10,4 @@ public enum MoveType
   Draw
 }
 
-public record Move(MoveType Type, List<Card> Cards, int FromIndex, int ToIndex, int PreviousStackIndex = 0);
+public record Move(MoveType Type, List<Card> Cards, int FromIndex, int ToIndex, int PreviousStackIndex = 0, bool LastCardFaceUp = true);

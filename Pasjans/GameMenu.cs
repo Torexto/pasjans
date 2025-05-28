@@ -18,9 +18,6 @@ public abstract class GameMenu : Menu
       {
         Write(" ");
 
-        if (column.Count - 1 == i)
-          column[i].IsFaceUp = true;
-
         if (column.Count <= i)
         {
           Write("   ");

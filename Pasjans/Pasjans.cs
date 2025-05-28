@@ -81,6 +81,8 @@ public class Pasjans
         card.IsFaceUp = false;
         MoveCard(card, Deck, column);
       }
+
+      column.Last().IsFaceUp = true;
     }
   }
 
@@ -114,7 +116,11 @@ public class Pasjans
 
     MoveCards(fromColumn, toColumn, count);
 
-    _undoStack.Push(new Move(MoveType.ColumnToColumn, [..stack], fromColumnIndex, toColumnIndex));
+    var lastCard = fromColumn.LastOrDefault();
+
+    _undoStack.Push(new Move(MoveType.ColumnToColumn, [..stack], fromColumnIndex, toColumnIndex, 0, lastCard?.IsFaceUp ?? false));
+
+    if (lastCard is not null) lastCard.IsFaceUp = true;
 
     Moves++;
   }
@@ -205,8 +211,11 @@ public class Pasjans
 
     MoveCard(card, fromColumn, toColumn);
 
-    _undoStack.Push(new Move(MoveType.ColumnToEnding, [card], fromColumnIndex, toStackIndex));
+    var lastCard = fromColumn.LastOrDefault();
 
+    _undoStack.Push(new Move(MoveType.ColumnToEnding, [card], fromColumnIndex, toStackIndex, 0, lastCard?.IsFaceUp ?? false));
+
+    if (lastCard is not null) lastCard.IsFaceUp = true;
     Moves++;
   }
 
@@ -292,6 +301,7 @@ public class Pasjans
       case MoveType.ColumnToColumn:
         var toCol = Columns[move.ToIndex];
         var fromCol = Columns[move.FromIndex];
+        if (!move.LastCardFaceUp) fromCol.Last().IsFaceUp = false;
         for (var i = 0; i < move.Cards.Count; i++) toCol.RemoveAt(toCol.Count - 1);
         fromCol.AddRange(move.Cards);
         break;
@@ -303,6 +313,7 @@ public class Pasjans
         break;
 
       case MoveType.ColumnToEnding:
+        if (!move.LastCardFaceUp) Columns[move.FromIndex].Last().IsFaceUp = false;
         EndingStacks[move.ToIndex].RemoveAt(EndingStacks[move.ToIndex].Count - 1);
         Columns[move.FromIndex].Add(move.Cards[0]);
         break;
