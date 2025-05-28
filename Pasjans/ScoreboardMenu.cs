@@ -1,29 +1,43 @@
 using static System.Console;
 
-namespace Pasjans;
-
-public static class ScoreboardMenu
+namespace Pasjans
 {
-  public static readonly List<uint> Scores = [];
-
-  public static void Create()
+  /// <summary>
+  /// Statyczne menu wyświetlające ranking wyników gry Pasjans.
+  /// </summary>
+  public static class ScoreboardMenu
   {
-    Clear();
+    /// <summary>
+    /// Lista przechowująca wyniki (liczbę ruchów) graczy.
+    /// </summary>
+    public static readonly List<uint> Scores = [];
 
-    WriteLine("Ranking\n");
-
-    if (Scores.Count > 0)
+    /// <summary>
+    /// Tworzy i wyświetla menu rankingu wyników.
+    /// Sortuje listę wyników rosnąco i wyświetla je.
+    /// Jeśli lista jest pusta, wyświetla komunikat o braku wyników.
+    /// Po wyświetleniu wyników czeka na naciśnięcie dowolnego klawisza.
+    /// </summary>
+    public static void Create()
     {
-      Scores.Sort();
+      Clear();
 
-      foreach (var score in Scores) WriteLine(score);
-    }
-    else
-    {
-      WriteLine("Brak wyników");
-    }
+      WriteLine("Ranking\n");
 
-    WriteLine("\nNaciśnij dowolny klawisz, aby wrócić");
-    ReadKey();
+      if (Scores.Count > 0)
+      {
+        Scores.Sort();
+
+        foreach (var score in Scores)
+          WriteLine(score);
+      }
+      else
+      {
+        WriteLine("Brak wyników");
+      }
+
+      WriteLine("\nNaciśnij dowolny klawisz, aby wrócić");
+      ReadKey();
+    }
   }
 }

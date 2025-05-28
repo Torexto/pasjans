@@ -4,12 +4,18 @@ using static System.Console;
 
 namespace Pasjans;
 
+/// <summary>
+/// Reprezentuje menu gry dla pasjansa.
+/// Odpowiada za obsługę interfejsu gry.
+/// </summary>
 public abstract class GameMenu : Menu
 {
+  /// <summary>
+  /// Wyświetla planszę gry w konsoli, z opcjonalnym podświetleniem wybranej karty.
+  /// </summary>
   private static void PrintBoard(Pasjans game, (int, int)? highlight = null)
   {
     var max = game.Columns.Select(column => column.Count).Max();
-
     WriteLine();
 
     for (var i = 0; i < max; i++)
@@ -24,14 +30,10 @@ public abstract class GameMenu : Menu
           continue;
         }
 
-        if (highlight is not null)
-        {
-          if (highlight.Value.Item2 == i && highlight.Value.Item1 == j)
-            BackgroundColor = ConsoleColor.Cyan;
-        }
+        if (highlight is not null && highlight.Value.Item2 == i && highlight.Value.Item1 == j)
+          BackgroundColor = ConsoleColor.Cyan;
 
         column[i].Print();
-
         ResetColor();
       }
 
@@ -39,6 +41,9 @@ public abstract class GameMenu : Menu
     }
   }
 
+  /// <summary>
+  /// Menu wyboru rzędu z podanej kolumny.
+  /// </summary>
   private static int? RowMenu(Pasjans game, int columnIndex)
   {
     var rowTracker = new IndexTracker(game.Columns[columnIndex].Count);
@@ -46,7 +51,6 @@ public abstract class GameMenu : Menu
     while (true)
     {
       Clear();
-
       PrintBoard(game, (columnIndex, rowTracker.Index - 1));
 
       switch (ReadKey().Key)
@@ -65,6 +69,9 @@ public abstract class GameMenu : Menu
     }
   }
 
+  /// <summary>
+  /// Menu wyboru kolumny (używane w wielu kontekstach gry).
+  /// </summary>
   private static int? ColumnMenu(Pasjans game, [CallerMemberName] string name = "")
   {
     var columnTracker = new IndexTracker(7);
@@ -79,19 +86,14 @@ public abstract class GameMenu : Menu
         if (card is null) return null;
 
         Write(" ");
-
-        for (var i = 0; i < columnTracker.Index - 1; i++)
-          Write("    ");
-
+        for (var i = 0; i < columnTracker.Index - 1; i++) Write("    ");
         card.Print();
-
         WriteLine();
       }
 
       for (var j = 1; j <= 7; j++)
       {
         Write(" ");
-
         if (columnTracker.Index == j)
         {
           BackgroundColor = ConsoleColor.Cyan;
@@ -99,7 +101,6 @@ public abstract class GameMenu : Menu
         }
 
         Write($" {j} ");
-
         ResetColor();
       }
 
@@ -121,6 +122,9 @@ public abstract class GameMenu : Menu
     }
   }
 
+  /// <summary>
+  /// Menu wyboru stosu końcowego.
+  /// </summary>
   private static int? EndingStackMenu(Pasjans game)
   {
     var endingStackTracker = new IndexTracker(4);
@@ -142,7 +146,6 @@ public abstract class GameMenu : Menu
           card.Print();
 
         ResetColor();
-
         Write(" ");
       }
 
@@ -163,6 +166,9 @@ public abstract class GameMenu : Menu
     }
   }
 
+  /// <summary>
+  /// Tworzy i uruchamia nową grę.
+  /// </summary>
   public static void Create(Pasjans.Mode mode)
   {
     var game = new Pasjans(mode);
@@ -189,7 +195,6 @@ public abstract class GameMenu : Menu
       PrintBoard(game);
 
       WriteLine();
-
       Write($"Pozostało: {game.Deck.Count - game.DrawPileIndex} ");
 
       foreach (var card in game.Deck.GetRange(0, game.DrawPileIndex))
@@ -200,21 +205,16 @@ public abstract class GameMenu : Menu
       foreach (var stack in game.EndingStacks)
       {
         var card = stack.LastOrDefault();
-
         if (card is null)
           Write("###");
         else
           card.Print();
-
         Write(" ");
       }
 
       WriteLine();
-
       WriteLine($"Ilość ruchów: {game.Moves}");
-
       WriteLine();
-
       PrintMenu(selectedOption);
 
       var key = ReadKey().Key;
@@ -262,6 +262,9 @@ public abstract class GameMenu : Menu
     }
   }
 
+  /// <summary>
+  /// Przenosi kartę ze stosu rezerwowego do wybranej kolumny.
+  /// </summary>
   private static void MoveFromPileToColumn(Pasjans game)
   {
     var columnIndex = ColumnMenu(game);
@@ -269,6 +272,9 @@ public abstract class GameMenu : Menu
     game.MoveFromPileToColumn(columnIndex.Value - 1);
   }
 
+  /// <summary>
+  /// Przenosi karty z jednej kolumny do drugiej.
+  /// </summary>
   private static void MoveBetweenColumns(Pasjans game)
   {
     var fromColumnIndex = ColumnMenu(game);
@@ -283,6 +289,9 @@ public abstract class GameMenu : Menu
     game.MoveBetweenColumns(fromColumnIndex.Value - 1, fromRowIndex.Value - 1, toColumnIndex.Value - 1);
   }
 
+  /// <summary>
+  /// Przenosi kartę z kolumny do stosu końcowego.
+  /// </summary>
   private static void MoveFromColumnToEndingStack(Pasjans game)
   {
     var columnIndex = ColumnMenu(game);
@@ -291,6 +300,9 @@ public abstract class GameMenu : Menu
     game.MoveFromColumnToEndingStack(columnIndex.Value - 1);
   }
 
+  /// <summary>
+  /// Przenosi kartę ze stosu końcowego do kolumny.
+  /// </summary>
   private static void MoveFromEndingStackToColumn(Pasjans game)
   {
     var endingStackIndex = EndingStackMenu(game);
@@ -302,6 +314,9 @@ public abstract class GameMenu : Menu
     game.MoveFromEndingStackToColumn(endingStackIndex.Value - 1, columnIndex.Value - 1);
   }
 
+  /// <summary>
+  /// Opcje dostępne w menu gry.
+  /// </summary>
   private enum GameMenuOption
   {
     [Description("Dobierz karty")] DrawCards,
